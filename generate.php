@@ -182,23 +182,12 @@ let selectedType = 'course';
 let includeQuiz  = true;
 let AI_SETTINGS  = null;
 
-// ── Gemini fallback chain ──────────────────────────
-const GEMINI_FALLBACKS = [
-    'gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-flash',
-    'gemini-1.5-flash-8b','gemini-1.5-pro','gemini-2.0-flash-lite'
-];
-
-// ── Groq fallback chain (removed deprecated models) ──
-const GROQ_FALLBACKS = [
-    'llama-3.3-70b-versatile',
-    'llama-3.1-8b-instant'
-];
-
-const OPENAI_FALLBACKS = ['gpt-4o-mini','gpt-4o','gpt-3.5-turbo'];
-const GROK_FALLBACKS   = ['grok-3-fast','grok-3','grok-2-1212'];
-const DEEPSEEK_FALLBACKS   = ['deepseek-chat','deepseek-reasoner'];
-const OPENROUTER_FALLBACKS = ['deepseek/deepseek-chat-v3-0324:free','meta-llama/llama-3.3-70b-instruct:free','qwen/qwen-2.5-72b-instruct:free'];
-const CEREBRAS_FALLBACKS   = ['llama-3.3-70b','qwen-3-32b','llama3.1-8b'];
+// ── Model fallback chains (5 massive free providers) ──
+const NVIDIA_FALLBACKS    = ['nvidia/llama-3.1-nemotron-ultra-253b-v1','nvidia/llama-3.3-nemotron-super-49b-v1','meta/llama-3.3-70b-instruct'];
+const SAMBANOVA_FALLBACKS = ['Meta-Llama-3.1-405B-Instruct','DeepSeek-V3.1','Meta-Llama-3.3-70B-Instruct'];
+const CHUTES_FALLBACKS    = ['deepseek-ai/DeepSeek-V3-0324','moonshotai/Kimi-K2-Instruct','zai-org/GLM-4.5-Air'];
+const OPENROUTER_FALLBACKS= ['deepseek/deepseek-chat-v3-0324:free','meta-llama/llama-3.3-70b-instruct:free','qwen/qwen-2.5-72b-instruct:free'];
+const GEMINI_FALLBACKS    = ['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-pro','gemini-2.0-flash-lite'];
 
 // ── Load settings on page load ─────────────────────
 async function loadSettings() {
@@ -256,14 +245,12 @@ function resetBtn() {
 // ── Build model list (saved first, then fallbacks) ──
 function buildModels(provider, savedModel) {
     var fallbacks = {
-        gemini:     GEMINI_FALLBACKS,
-        groq:       GROQ_FALLBACKS,
-        deepseek:   DEEPSEEK_FALLBACKS,
+        nvidia:     NVIDIA_FALLBACKS,
+        sambanova:  SAMBANOVA_FALLBACKS,
+        chutes:     CHUTES_FALLBACKS,
         openrouter: OPENROUTER_FALLBACKS,
-        cerebras:   CEREBRAS_FALLBACKS,
-        openai:     OPENAI_FALLBACKS,
-        grok:       GROK_FALLBACKS
-    }[provider] || GEMINI_FALLBACKS;
+        gemini:     GEMINI_FALLBACKS
+    }[provider] || NVIDIA_FALLBACKS;
 
     var list = [];
     if (savedModel && savedModel.trim()) list.push(savedModel.trim());
@@ -274,13 +261,11 @@ function buildModels(provider, savedModel) {
 // ── Build API keys list ────────────────────────────
 function buildKeys(provider, s) {
     var keyMap = {
-        gemini:     [s.gemini_api_key||'', s.gemini_api_key_2||'', s.gemini_api_key_3||''],
-        groq:       [s.groq_api_key||'',   s.groq_api_key_2||'',   s.groq_api_key_3||''],
-        deepseek:   [s.deepseek_api_key||'', s.deepseek_api_key_2||'', s.deepseek_api_key_3||''],
+        nvidia:     [s.nvidia_api_key||'', s.nvidia_api_key_2||'', s.nvidia_api_key_3||''],
+        sambanova:  [s.sambanova_api_key||'', s.sambanova_api_key_2||'', s.sambanova_api_key_3||''],
+        chutes:     [s.chutes_api_key||'', s.chutes_api_key_2||'', s.chutes_api_key_3||''],
         openrouter: [s.openrouter_api_key||'', s.openrouter_api_key_2||'', s.openrouter_api_key_3||''],
-        cerebras:   [s.cerebras_api_key||'', s.cerebras_api_key_2||'', s.cerebras_api_key_3||''],
-        openai:     [s.openai_api_key||'', s.openai_api_key_2||'', s.openai_api_key_3||''],
-        grok:       [s.grok_api_key||'',   s.grok_api_key_2||'',   s.grok_api_key_3||'']
+        gemini:     [s.gemini_api_key||'', s.gemini_api_key_2||'', s.gemini_api_key_3||'']
     };
     return (keyMap[provider] || []).filter(function(k) { return k.trim(); });
 }
@@ -314,12 +299,10 @@ async function callGemini(apiKey, model, prompt) {
 // ── Groq / OpenAI / Grok API call ─────────────────
 async function callOpenAIFormat(provider, apiKey, model, prompt) {
     var urls = {
-        groq:       'https://api.groq.com/openai/v1/chat/completions',
-        deepseek:   'https://api.deepseek.com/v1/chat/completions',
-        openrouter: 'https://openrouter.ai/api/v1/chat/completions',
-        cerebras:   'https://api.cerebras.ai/v1/chat/completions',
-        openai:     'https://api.openai.com/v1/chat/completions',
-        grok:       'https://api.x.ai/v1/chat/completions'
+        nvidia:     'https://integrate.api.nvidia.com/v1/chat/completions',
+        sambanova:  'https://api.sambanova.ai/v1/chat/completions',
+        chutes:     'https://llm.chutes.ai/v1/chat/completions',
+        openrouter: 'https://openrouter.ai/api/v1/chat/completions'
     };
     var url = urls[provider];
     if (!url) return {ok:false,code:0,msg:'Unknown provider: '+provider};
@@ -471,7 +454,7 @@ async function startGenerate() {
         } catch(e) { showErr('Settings fetch error: '+e.message); return; }
     }
 
-    var provider = (AI_SETTINGS.active_ai_provider || 'gemini').toLowerCase().trim();
+    var provider = (AI_SETTINGS.active_ai_provider || 'nvidia').toLowerCase().trim();
     console.log('[GEN] Provider:', provider);
     console.log('[GEN] All settings keys:', Object.keys(AI_SETTINGS));
 

@@ -62,19 +62,17 @@ var AI_SETTINGS = null;
 // ─── PROVIDER CONFIG ──────────────────────────────────────────────────────────
 // Default model lists per provider (fallback if no saved model)
 var PROVIDER_MODELS = {
-  gemini:     ['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-pro','gemini-2.0-flash-lite'],
-  groq:       ['llama-3.3-70b-versatile','llama-3.1-8b-instant'],
-  deepseek:   ['deepseek-chat','deepseek-reasoner'],
-  openrouter: ['deepseek/deepseek-chat-v3-0324:free','meta-llama/llama-3.3-70b-instruct:free','qwen/qwen-2.5-72b-instruct:free','google/gemini-2.0-flash-exp:free','mistralai/mistral-small-3.1-24b-instruct:free'],
-  cerebras:   ['llama-3.3-70b','qwen-3-32b','llama3.1-8b'],
-  openai:     ['gpt-4o-mini','gpt-4o','gpt-3.5-turbo'],
-  grok:       ['grok-3-fast','grok-3','grok-2']
+  nvidia:     ['nvidia/llama-3.1-nemotron-ultra-253b-v1','nvidia/llama-3.3-nemotron-super-49b-v1','meta/llama-3.3-70b-instruct'],
+  sambanova:  ['Meta-Llama-3.1-405B-Instruct','DeepSeek-V3.1','Meta-Llama-3.3-70B-Instruct'],
+  chutes:     ['deepseek-ai/DeepSeek-V3-0324','moonshotai/Kimi-K2-Instruct','zai-org/GLM-4.5-Air'],
+  openrouter: ['deepseek/deepseek-chat-v3-0324:free','meta-llama/llama-3.3-70b-instruct:free','qwen/qwen-2.5-72b-instruct:free'],
+  gemini:     ['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-pro']
 };
 
 // Max output tokens — 8000 gives room for a deep, premium 1500-2500 word lesson.
 // Smaller fallback models that can't handle this (HTTP 413) are auto-skipped,
 // so the big, capable models (llama-3.3-70b, gemini, deepseek, etc.) do the work.
-var MAX_OUTPUT_TOKENS = 4096;
+var MAX_OUTPUT_TOKENS = 6000;
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -99,11 +97,11 @@ function setProgress(pct, label){
 // Returns array of {provider, keys[], models[]} in priority order
 // Primary provider first, then others as fallback
 function buildProviderChain(settings){
-  var primary = settings.active_ai_provider || 'gemini';
+  var primary = settings.active_ai_provider || 'nvidia';
 
   // All providers in order: primary first, then the rest as fallback
   var order = [primary];
-  ['gemini','groq','deepseek','openrouter','cerebras','openai','grok'].forEach(function(p){
+  ['nvidia','sambanova','chutes','openrouter','gemini'].forEach(function(p){
     if(p !== primary) order.push(p);
   });
 
@@ -183,13 +181,11 @@ function callOpenAIStyle(endpoint, apiKey, model, prompt){
 }
 
 function callAPI(provider, apiKey, model, prompt){
-  if(provider === 'gemini')     return callGemini(apiKey, model, prompt);
-  if(provider === 'groq')       return callOpenAIStyle('https://api.groq.com/openai/v1/chat/completions', apiKey, model, prompt);
-  if(provider === 'deepseek')   return callOpenAIStyle('https://api.deepseek.com/v1/chat/completions', apiKey, model, prompt);
-  if(provider === 'openrouter') return callOpenAIStyle('https://openrouter.ai/api/v1/chat/completions', apiKey, model, prompt);
-  if(provider === 'cerebras')   return callOpenAIStyle('https://api.cerebras.ai/v1/chat/completions', apiKey, model, prompt);
-  if(provider === 'openai')     return callOpenAIStyle('https://api.openai.com/v1/chat/completions', apiKey, model, prompt);
-  if(provider === 'grok')       return callOpenAIStyle('https://api.x.ai/v1/chat/completions', apiKey, model, prompt);
+  if(provider === 'gemini')    return callGemini(apiKey, model, prompt);
+  if(provider === 'nvidia')    return callOpenAIStyle('https://integrate.api.nvidia.com/v1/chat/completions', apiKey, model, prompt);
+  if(provider === 'sambanova') return callOpenAIStyle('https://api.sambanova.ai/v1/chat/completions', apiKey, model, prompt);
+  if(provider === 'chutes')    return callOpenAIStyle('https://llm.chutes.ai/v1/chat/completions', apiKey, model, prompt);
+  if(provider === 'openrouter')return callOpenAIStyle('https://openrouter.ai/api/v1/chat/completions', apiKey, model, prompt);
   return Promise.resolve({ok:false, code:0, msg:'UNKNOWN_PROVIDER'});
 }
 
