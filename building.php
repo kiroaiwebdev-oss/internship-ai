@@ -72,7 +72,7 @@ var PROVIDER_MODELS = {
 // Max output tokens — 8000 gives room for a deep, premium 1500-2500 word lesson.
 // Smaller fallback models that can't handle this (HTTP 413) are auto-skipped,
 // so the big, capable models (llama-3.3-70b, gemini, deepseek, etc.) do the work.
-var MAX_OUTPUT_TOKENS = 6000;
+var MAX_OUTPUT_TOKENS = 3000; // keep responses fast enough to beat shared-host 504 timeouts (~2000 words)
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -417,10 +417,12 @@ async function generateOneDay(chain, dayObj, meta, weekTopics){
       continue;
     }
 
-    if(res.code === 503 || res.code === 408 || res.code === 500){
-      // Temporary server error — short wait, try next model/provider
-      log('  ⚠️ ' + res.msg + ' — 5s wait, retry...', 'warn');
-      await sleep(5000);
+    if(res.code === 503 || res.code === 408 || res.code === 500 ||
+       res.code === 504 || res.code === 502 || res.code === 520 || res.code === 522 || res.code === 524){
+      // Server/gateway timeout or temporary error — the big model was just slow.
+      // Short wait and retry the SAME provider/key (it usually succeeds within a few tries).
+      log('  ⏳ Server slow/timeout (' + res.code + ') — 4s wait, retry...', 'warn');
+      await sleep(4000);
       continue;
     }
 

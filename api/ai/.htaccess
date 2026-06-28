@@ -1,0 +1,20 @@
+# Raise PHP limits for the LLM proxy (big models can take 60-120s to respond).
+# Works on LiteSpeed / Apache (mod_php / suPHP). Harmless if ignored.
+<IfModule lsapi_module>
+    php_value max_execution_time 300
+    php_value max_input_time 300
+    php_value default_socket_timeout 300
+</IfModule>
+<IfModule mod_php.c>
+    php_value max_execution_time 300
+    php_value max_input_time 300
+    php_value default_socket_timeout 300
+</IfModule>
+<IfModule mod_php7.c>
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>
+<IfModule mod_php8.c>
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>

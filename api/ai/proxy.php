@@ -16,6 +16,9 @@ session_start();
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, no-store');
 @set_time_limit(180); // big models (253B) can take a while
+@ini_set('max_execution_time', '300');
+@ini_set('default_socket_timeout', '300');
+ignore_user_abort(true);
 
 if (!isset($_SESSION['studio_user_id'])) {
     echo json_encode(['ok' => false, 'code' => 401, 'msg' => 'Not logged in']);
