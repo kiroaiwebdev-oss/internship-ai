@@ -271,63 +271,25 @@ function buildKeys(provider, s) {
 }
 
 // ── Gemini API call ────────────────────────────────
-async function callGemini(apiKey, model, prompt) {
+// ─── API CALLER (server-side proxy — fixes browser CORS "Failed to fetch") ──
+async function callAPI(provider, apiKey, model, prompt) {
     var controller = new AbortController();
-    var timer = setTimeout(function() { controller.abort(); }, 50000);
+    var timer = setTimeout(function(){ controller.abort(); }, 160000);
     try {
-        var res = await fetch(
-            'https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+apiKey,
-            { method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:6000}}),
-              signal: controller.signal }
-        );
-        clearTimeout(timer);
-        if (res.status===429) return {ok:false,code:429,msg:'RATE_LIMIT'};
-        if (res.status===503) return {ok:false,code:503,msg:'MODEL_OVERLOADED'};
-        if (!res.ok) return {ok:false,code:res.status,msg:'HTTP_'+res.status};
-        var json = await res.json();
-        var text = (json&&json.candidates&&json.candidates[0]&&json.candidates[0].content&&json.candidates[0].content.parts&&json.candidates[0].content.parts[0]&&json.candidates[0].content.parts[0].text) || '';
-        if (!text.trim()) return {ok:false,code:0,msg:'EMPTY_RESPONSE'};
-        return {ok:true,text:text};
-    } catch(e) {
-        clearTimeout(timer);
-        if (e.name==='AbortError') return {ok:false,code:408,msg:'TIMEOUT'};
-        return {ok:false,code:0,msg:e.message};
-    }
-}
-
-// ── Groq / OpenAI / Grok API call ─────────────────
-async function callOpenAIFormat(provider, apiKey, model, prompt) {
-    var urls = {
-        nvidia:     'https://integrate.api.nvidia.com/v1/chat/completions',
-        sambanova:  'https://api.sambanova.ai/v1/chat/completions',
-        chutes:     'https://llm.chutes.ai/v1/chat/completions',
-        openrouter: 'https://openrouter.ai/api/v1/chat/completions'
-    };
-    var url = urls[provider];
-    if (!url) return {ok:false,code:0,msg:'Unknown provider: '+provider};
-
-    var controller = new AbortController();
-    var timer = setTimeout(function() { controller.abort(); }, 50000);
-    try {
-        var res = await fetch(url, {
+        var res = await fetch('api/ai/proxy.php', {
             method: 'POST',
-            headers: {'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-            body: JSON.stringify({model:model,messages:[{role:'user',content:prompt}],max_tokens:6000,temperature:0.7}),
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ provider:provider, api_key:apiKey, model:model, prompt:prompt, max_tokens:6000, temperature:0.7 }),
             signal: controller.signal
         });
         clearTimeout(timer);
-        if (res.status===429) return {ok:false,code:429,msg:'RATE_LIMIT'};
-        if (res.status===404) return {ok:false,code:404,msg:'MODEL_NOT_FOUND'};
-        if (!res.ok) return {ok:false,code:res.status,msg:'HTTP_'+res.status};
-        var json = await res.json();
-        var text = (json&&json.choices&&json.choices[0]&&json.choices[0].message&&json.choices[0].message.content) || '';
-        if (!text.trim()) return {ok:false,code:0,msg:'EMPTY_RESPONSE'};
-        return {ok:true,text:text};
+        var raw = await res.text();
+        var j; try { j = JSON.parse(raw); } catch(e){ return {ok:false, code:res.status||0, msg:'Proxy not deployed / bad JSON'}; }
+        if (j && j.ok && j.text) return {ok:true, text:j.text};
+        return {ok:false, code:(j&&j.code)||0, msg:(j&&j.msg)||'PROXY_ERROR'};
     } catch(e) {
         clearTimeout(timer);
-        if (e.name==='AbortError') return {ok:false,code:408,msg:'TIMEOUT'};
-        return {ok:false,code:0,msg:e.message};
+        return {ok:false, code:408, msg: e.name==='AbortError'?'TIMEOUT':e.message};
     }
 }
 
@@ -396,9 +358,7 @@ async function callWithFallback(provider, apiKeys, models, prompt, batchNum) {
 
         log('🔁 Try '+attempts+': Key'+(keyIdx%apiKeys.length+1)+' + '+model, 'log-info');
 
-        var res = provider === 'gemini'
-            ? await callGemini(apiKey, model, prompt)
-            : await callOpenAIFormat(provider, apiKey, model, prompt);
+        var res = await callAPI(provider, apiKey, model, prompt);
 
         if (res.ok) {
             var parsed = parseJSON(res.text);

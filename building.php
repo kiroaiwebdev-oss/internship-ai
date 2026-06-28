@@ -130,63 +130,29 @@ function buildProviderChain(settings){
 }
 
 // ─── API CALLERS ──────────────────────────────────────────────────────────────
-function callGemini(apiKey, model, prompt){
+// ─── API CALLER (via server-side proxy to avoid browser CORS) ────────────────
+// All providers go through api/ai/proxy.php (server-side cURL) — fixes
+// "Failed to fetch" for NVIDIA/SambaNova/Chutes which block browser CORS.
+function callAPI(provider, apiKey, model, prompt){
   var ctrl  = new AbortController();
-  var timer = setTimeout(function(){ ctrl.abort(); }, 50000);
-  return fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey,
-    { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.6, maxOutputTokens:MAX_OUTPUT_TOKENS} }),
-      signal: ctrl.signal }
-  ).then(function(res){
-    clearTimeout(timer);
-    if(res.status === 429) return {ok:false, code:429, msg:'RATE_LIMIT'};
-    if(res.status === 503) return {ok:false, code:503, msg:'OVERLOADED'};
-    if(!res.ok)            return {ok:false, code:res.status, msg:'HTTP_'+res.status};
-    return res.json().then(function(j){
-      var text = '';
-      try { text = j.candidates[0].content.parts[0].text; } catch(e){}
-      return text.trim() ? {ok:true, text:text} : {ok:false, code:0, msg:'EMPTY'};
-    });
-  }).catch(function(e){
-    clearTimeout(timer);
-    return {ok:false, code:408, msg: e.name==='AbortError'?'TIMEOUT':e.message};
-  });
-}
-
-function callOpenAIStyle(endpoint, apiKey, model, prompt){
-  var ctrl  = new AbortController();
-  var timer = setTimeout(function(){ ctrl.abort(); }, 50000);
-  return fetch(endpoint, {
+  var timer = setTimeout(function(){ ctrl.abort(); }, 160000);
+  return fetch('api/ai/proxy.php', {
     method:'POST',
-    headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey},
-    body: JSON.stringify({ model:model, messages:[{role:'user',content:prompt}], max_tokens:MAX_OUTPUT_TOKENS, temperature:0.6 }),
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ provider:provider, api_key:apiKey, model:model, prompt:prompt, max_tokens:MAX_OUTPUT_TOKENS }),
     signal: ctrl.signal
   }).then(function(res){
     clearTimeout(timer);
-    if(res.status === 429) return {ok:false, code:429, msg:'RATE_LIMIT'};
-    if(res.status === 401) return {ok:false, code:401, msg:'INVALID_KEY'};
-    if(res.status === 404) return {ok:false, code:404, msg:'MODEL_NOT_FOUND'};
-    if(res.status === 503) return {ok:false, code:503, msg:'OVERLOADED'};
-    if(!res.ok)            return {ok:false, code:res.status, msg:'HTTP_'+res.status};
-    return res.json().then(function(j){
-      var text = '';
-      try { text = j.choices[0].message.content; } catch(e){}
-      return text.trim() ? {ok:true, text:text} : {ok:false, code:0, msg:'EMPTY'};
+    return res.text().then(function(raw){
+      var j; try { j = JSON.parse(raw); } catch(e){ return {ok:false, code:res.status||0, msg:'Proxy not deployed / bad JSON'}; }
+      if(j && j.ok && j.text) return {ok:true, text:j.text};
+      return {ok:false, code:(j&&j.code)||0, msg:(j&&j.msg)||'PROXY_ERROR'};
     });
   }).catch(function(e){
     clearTimeout(timer);
     return {ok:false, code:408, msg: e.name==='AbortError'?'TIMEOUT':e.message};
   });
-}
-
-function callAPI(provider, apiKey, model, prompt){
-  if(provider === 'gemini')    return callGemini(apiKey, model, prompt);
-  if(provider === 'nvidia')    return callOpenAIStyle('https://integrate.api.nvidia.com/v1/chat/completions', apiKey, model, prompt);
-  if(provider === 'sambanova') return callOpenAIStyle('https://api.sambanova.ai/v1/chat/completions', apiKey, model, prompt);
-  if(provider === 'chutes')    return callOpenAIStyle('https://llm.chutes.ai/v1/chat/completions', apiKey, model, prompt);
-  if(provider === 'openrouter')return callOpenAIStyle('https://openrouter.ai/api/v1/chat/completions', apiKey, model, prompt);
-  return Promise.resolve({ok:false, code:0, msg:'UNKNOWN_PROVIDER'});
+});
 }
 
 // ─── PROMPT BUILDERS ──────────────────────────────────────────────────────────
