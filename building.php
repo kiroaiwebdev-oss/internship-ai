@@ -152,7 +152,6 @@ function callAPI(provider, apiKey, model, prompt){
     clearTimeout(timer);
     return {ok:false, code:408, msg: e.name==='AbortError'?'TIMEOUT':e.message};
   });
-});
 }
 
 // ─── PROMPT BUILDERS ──────────────────────────────────────────────────────────
